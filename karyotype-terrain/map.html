@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Music's Karyotype — Genome Terrain Map</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0f;
+    color: #c8c8d0;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  h1 {
+    font-size: 14px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    font-size: 11px;
+    color: #555;
+    margin-bottom: 20px;
+    letter-spacing: 1px;
+  }
+  canvas {
+    border: 1px solid #1a1a2a;
+    cursor: crosshair;
+  }
+  .info {
+    margin-top: 12px;
+    font-size: 11px;
+    color: #666;
+    text-align: center;
+    max-width: 800px;
+    line-height: 1.6;
+  }
+  .hover-info {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #aaa;
+    height: 20px;
+    letter-spacing: 1px;
+  }
+  .legend {
+    display: flex;
+    gap: 20px;
+    margin-top: 10px;
+    font-size: 10px;
+    color: #555;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .legend-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+  }
+</style>
+</head>
+<body>
+<h1>Music's Karyotype</h1>
+<div class="subtitle">the genome as terrain — chromosome territories as peaks</div>
+<div class="hover-info" id="hoverInfo">hover to read the terrain</div>
+<canvas id="terrain" width="900" height="620"></canvas>
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch" style="background:#0a0520"></div> valley — sparse territory</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#2a1a4a"></div> foothills — transition zone</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#6a2c5a"></div> slopes — genre boundary</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#c44a30"></div> ridge — high chromosome density</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#f0c848"></div> peak — genre centre</div>
+</div>
+<div class="info">
+  Each peak is a chromosome territory — a genre. Height = chromosome density (how many songs cluster here).
+  Ridges between peaks = lineage paths (evolutionary routes along which genetic material flowed).
+  Valleys = transition zones where genre boundaries gradient into each other.
+  The terrain is continuous. No walls. Only crossfades.
+</div>
+
+<script>
+const canvas = document.getElementById('terrain');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;
+const H = canvas.height;
+const hoverInfo = document.getElementById('hoverInfo');
+
+// Genre territories positioned by rough sonic/genetic relatedness
+// x: acoustic-organic ← → electronic-synthetic
+// y: low-energy/sparse ← → high-energy/dense
+const genres = [
+  // Acoustic / organic cluster
+  { name: 'Folk', x: 0.08, y: 0.35, r: 0.045, h: 0.6, color: 'earth' },
+  { name: 'Country', x: 0.13, y: 0.42, r: 0.05, h: 0.55, color: 'earth' },
+  { name: 'Blues', x: 0.17, y: 0.5, r: 0.055, h: 0.7, color: 'earth' },
+  { name: 'Gospel', x: 0.14, y: 0.58, r: 0.04, h: 0.5, color: 'earth' },
+
+  // Classical / composed cluster
+  { name: 'Classical', x: 0.1, y: 0.18, r: 0.06, h: 0.65, color: 'cool' },
+  { name: 'Ambient', x: 0.22, y: 0.08, r: 0.055, h: 0.5, color: 'cool' },
+
+  // Rock mountain range
+  { name: 'Rock', x: 0.3, y: 0.55, r: 0.07, h: 0.85, color: 'warm' },
+  { name: 'Punk', x: 0.28, y: 0.68, r: 0.045, h: 0.65, color: 'warm' },
+  { name: 'Metal', x: 0.32, y: 0.78, r: 0.055, h: 0.7, color: 'hot' },
+  { name: 'Indie', x: 0.25, y: 0.42, r: 0.05, h: 0.6, color: 'warm' },
+  { name: 'Shoegaze', x: 0.27, y: 0.32, r: 0.035, h: 0.45, color: 'cool' },
+  { name: 'Post-Rock', x: 0.22, y: 0.25, r: 0.04, h: 0.5, color: 'cool' },
+
+  // Soul / R&B / Funk ridge
+  { name: 'Soul', x: 0.35, y: 0.45, r: 0.05, h: 0.7, color: 'warm' },
+  { name: 'Funk', x: 0.4, y: 0.55, r: 0.055, h: 0.75, color: 'warm' },
+  { name: 'R&B', x: 0.42, y: 0.42, r: 0.055, h: 0.7, color: 'warm' },
+  { name: 'Reggae', x: 0.33, y: 0.38, r: 0.045, h: 0.55, color: 'earth' },
+
+  // Jazz cluster
+  { name: 'Jazz', x: 0.25, y: 0.5, r: 0.06, h: 0.75, color: 'warm' },
+
+  // Pop — the massive central peak
+  { name: 'Pop', x: 0.48, y: 0.4, r: 0.08, h: 0.95, color: 'warm' },
+  { name: 'Synth-Pop', x: 0.55, y: 0.35, r: 0.05, h: 0.65, color: 'warm' },
+
+  // Hip-hop / Rap territory
+  { name: 'Hip-Hop', x: 0.5, y: 0.6, r: 0.07, h: 0.9, color: 'hot' },
+  { name: 'Trap', x: 0.58, y: 0.65, r: 0.055, h: 0.75, color: 'hot' },
+  { name: 'Grime', x: 0.6, y: 0.72, r: 0.04, h: 0.55, color: 'hot' },
+
+  // Electronic mainland
+  { name: 'House', x: 0.65, y: 0.5, r: 0.06, h: 0.8, color: 'electric' },
+  { name: 'Techno', x: 0.72, y: 0.55, r: 0.055, h: 0.75, color: 'electric' },
+  { name: 'Disco', x: 0.55, y: 0.48, r: 0.05, h: 0.65, color: 'warm' },
+  { name: 'Garage', x: 0.62, y: 0.45, r: 0.04, h: 0.55, color: 'electric' },
+  { name: 'Trance', x: 0.75, y: 0.45, r: 0.045, h: 0.6, color: 'electric' },
+
+  // Electronic archipelago
+  { name: 'DnB', x: 0.73, y: 0.68, r: 0.05, h: 0.65, color: 'electric' },
+  { name: 'Jungle', x: 0.7, y: 0.72, r: 0.04, h: 0.55, color: 'electric' },
+  { name: 'Dubstep', x: 0.68, y: 0.62, r: 0.045, h: 0.6, color: 'electric' },
+  { name: 'IDM', x: 0.78, y: 0.35, r: 0.04, h: 0.5, color: 'electric' },
+
+  // Extreme electronic outposts
+  { name: 'Breakcore', x: 0.82, y: 0.82, r: 0.04, h: 0.5, color: 'hot' },
+  { name: 'Noise', x: 0.88, y: 0.88, r: 0.035, h: 0.4, color: 'hot' },
+  { name: 'Industrial', x: 0.78, y: 0.78, r: 0.04, h: 0.5, color: 'hot' },
+  { name: 'Hyperpop', x: 0.75, y: 0.58, r: 0.04, h: 0.55, color: 'electric' },
+
+  // Experimental / avant-garde
+  { name: 'Experimental', x: 0.85, y: 0.2, r: 0.05, h: 0.45, color: 'cool' },
+  { name: 'Drone', x: 0.82, y: 0.1, r: 0.04, h: 0.4, color: 'cool' },
+
+  // World music territories (simplified — each is really its own mountain range)
+  { name: 'Afrobeat', x: 0.42, y: 0.7, r: 0.045, h: 0.6, color: 'earth' },
+  { name: 'Latin', x: 0.38, y: 0.65, r: 0.05, h: 0.6, color: 'earth' },
+  { name: 'Dancehall', x: 0.52, y: 0.72, r: 0.04, h: 0.55, color: 'hot' },
+];
+
+// Ridges — lineage connections (stronger = more gene flow)
+const ridges = [
+  { from: 'Blues', to: 'Rock', strength: 0.9 },
+  { from: 'Blues', to: 'Jazz', strength: 0.8 },
+  { from: 'Blues', to: 'Soul', strength: 0.85 },
+  { from: 'Gospel', to: 'Soul', strength: 0.8 },
+  { from: 'Soul', to: 'Funk', strength: 0.85 },
+  { from: 'Funk', to: 'Hip-Hop', strength: 0.8 },
+  { from: 'Funk', to: 'Disco', strength: 0.75 },
+  { from: 'Rock', to: 'Punk', strength: 0.8 },
+  { from: 'Rock', to: 'Metal', strength: 0.75 },
+  { from: 'Rock', to: 'Indie', strength: 0.7 },
+  { from: 'Indie', to: 'Shoegaze', strength: 0.7 },
+  { from: 'Shoegaze', to: 'Post-Rock', strength: 0.65 },
+  { from: 'Post-Rock', to: 'Ambient', strength: 0.5 },
+  { from: 'Disco', to: 'House', strength: 0.85 },
+  { from: 'House', to: 'Techno', strength: 0.8 },
+  { from: 'House', to: 'Garage', strength: 0.75 },
+  { from: 'Techno', to: 'Trance', strength: 0.65 },
+  { from: 'Techno', to: 'IDM', strength: 0.6 },
+  { from: 'DnB', to: 'Jungle', strength: 0.9 },
+  { from: 'Jungle', to: 'Breakcore', strength: 0.7 },
+  { from: 'DnB', to: 'Dubstep', strength: 0.6 },
+  { from: 'Hip-Hop', to: 'Trap', strength: 0.85 },
+  { from: 'Trap', to: 'Grime', strength: 0.5 },
+  { from: 'Hip-Hop', to: 'R&B', strength: 0.75 },
+  { from: 'R&B', to: 'Pop', strength: 0.7 },
+  { from: 'Pop', to: 'Synth-Pop', strength: 0.75 },
+  { from: 'Synth-Pop', to: 'House', strength: 0.5 },
+  { from: 'Soul', to: 'R&B', strength: 0.8 },
+  { from: 'Folk', to: 'Country', strength: 0.8 },
+  { from: 'Folk', to: 'Indie', strength: 0.5 },
+  { from: 'Classical', to: 'Ambient', strength: 0.4 },
+  { from: 'Classical', to: 'Post-Rock', strength: 0.35 },
+  { from: 'Industrial', to: 'Noise', strength: 0.7 },
+  { from: 'Industrial', to: 'Metal', strength: 0.5 },
+  { from: 'Breakcore', to: 'Noise', strength: 0.6 },
+  { from: 'Afrobeat', to: 'Funk', strength: 0.65 },
+  { from: 'Latin', to: 'Pop', strength: 0.5 },
+  { from: 'Reggae', to: 'Dancehall', strength: 0.8 },
+  { from: 'Dancehall', to: 'Grime', strength: 0.5 },
+  { from: 'House', to: 'Hyperpop', strength: 0.4 },
+  { from: 'Pop', to: 'Hyperpop', strength: 0.5 },
+  { from: 'IDM', to: 'Experimental', strength: 0.55 },
+  { from: 'Experimental', to: 'Drone', strength: 0.6 },
+  { from: 'Ambient', to: 'Drone', strength: 0.65 },
+  { from: 'House', to: 'DnB', strength: 0.45 },
+  { from: 'Grime', to: 'DnB', strength: 0.55 },
+];
+
+// Color palettes
+function getColor(value, type) {
+  // value 0-1 mapped to color
+  const v = Math.max(0, Math.min(1, value));
+
+  // Base terrain colors — deep purple valleys to bright peaks
+  const r = Math.floor(10 + v * v * 230);
+  const g = Math.floor(5 + v * v * v * 190);
+  const b = Math.floor(32 + v * 80 - v * v * 60);
+
+  return `rgb(${r},${g},${b})`;
+}
+
+// Gaussian function
+function gaussian(x, y, cx, cy, r, h) {
+  const dx = x - cx;
+  const dy = y - cy;
+  const d2 = (dx * dx + dy * dy) / (r * r);
+  return h * Math.exp(-d2 * 2.5);
+}
+
+// Ridge function — elevated terrain between two points
+function ridgeContribution(x, y, g1, g2, strength) {
+  const x1 = g1.x, y1 = g1.y, x2 = g2.x, y2 = g2.y;
+
+  // Project point onto line segment
+  const dx = x2 - x1, dy = y2 - y1;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return 0;
+
+  let t = ((x - x1) * dx + (y - y1) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+
+  const projX = x1 + t * dx;
+  const projY = y1 + t * dy;
+
+  const distX = x - projX;
+  const distY = y - projY;
+  const dist2 = (distX * distX + distY * distY);
+
+  // Ridge width based on average of the two genre radii
+  const avgR = (g1.r + g2.r) / 2 * 0.6;
+  const ridgeH = Math.min(g1.h, g2.h) * strength * 0.4;
+
+  return ridgeH * Math.exp(-dist2 / (avgR * avgR) * 3);
+}
+
+// Pre-compute terrain height map
+const resolution = 2;
+const heightMap = new Float32Array((W / resolution) * (H / resolution));
+const cols = Math.ceil(W / resolution);
+const rows = Math.ceil(H / resolution);
+
+// Build genre lookup for ridges
+const genreMap = {};
+genres.forEach(g => genreMap[g.name] = g);
+
+for (let row = 0; row < rows; row++) {
+  for (let col = 0; col < cols; col++) {
+    const nx = col / cols;
+    const ny = row / rows;
+
+    let height = 0;
+
+    // Sum all genre peaks
+    for (const g of genres) {
+      height += gaussian(nx, ny, g.x, g.y, g.r, g.h);
+    }
+
+    // Add ridges
+    for (const ridge of ridges) {
+      const g1 = genreMap[ridge.from];
+      const g2 = genreMap[ridge.to];
+      if (g1 && g2) {
+        height += ridgeContribution(nx, ny, g1, g2, ridge.strength);
+      }
+    }
+
+    // Subtle base noise for organic feel
+    const noise = Math.sin(nx * 47) * Math.cos(ny * 53) * 0.015 +
+                  Math.sin(nx * 97 + ny * 71) * 0.01;
+    height += Math.max(0, noise);
+
+    heightMap[row * cols + col] = Math.min(1, height);
+  }
+}
+
+// Render terrain
+function render() {
+  // Background
+  ctx.fillStyle = '#0a0520';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw height map
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const h = heightMap[row * cols + col];
+      if (h > 0.01) {
+        ctx.fillStyle = getColor(h);
+        ctx.fillRect(col * resolution, row * resolution, resolution, resolution);
+      }
+    }
+  }
+
+  // Draw contour lines
+  const contourLevels = [0.08, 0.15, 0.25, 0.4, 0.55, 0.7, 0.85];
+  ctx.lineWidth = 0.5;
+
+  for (const level of contourLevels) {
+    ctx.strokeStyle = `rgba(255,255,255,${0.04 + level * 0.06})`;
+    ctx.beginPath();
+
+    for (let row = 1; row < rows - 1; row++) {
+      for (let col = 1; col < cols - 1; col++) {
+        const h = heightMap[row * cols + col];
+        const hRight = heightMap[row * cols + col + 1];
+        const hDown = heightMap[(row + 1) * cols + col];
+
+        // Simple marching squares - draw segment where contour crosses
+        if ((h >= level) !== (hRight >= level)) {
+          const t = (level - h) / (hRight - h);
+          const px = (col + t) * resolution;
+          const py = row * resolution;
+          ctx.moveTo(px, py);
+          ctx.lineTo(px, py + resolution);
+        }
+        if ((h >= level) !== (hDown >= level)) {
+          const t = (level - h) / (hDown - h);
+          const px = col * resolution;
+          const py = (row + t) * resolution;
+          ctx.moveTo(px, py);
+          ctx.lineTo(px + resolution, py);
+        }
+      }
+    }
+    ctx.stroke();
+  }
+
+  // Label genres
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  for (const g of genres) {
+    const px = g.x * W;
+    const py = g.y * H;
+    const fontSize = Math.max(8, Math.min(13, g.h * 14));
+
+    // Glow
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 4;
+
+    // Label
+    ctx.font = `${fontSize}px 'Courier New', monospace`;
+    ctx.fillStyle = `rgba(255,255,255,${0.3 + g.h * 0.5})`;
+    ctx.fillText(g.name, px, py);
+
+    ctx.shadowBlur = 0;
+  }
+
+  // Axis labels
+  ctx.font = '10px Courier New';
+  ctx.fillStyle = '#333';
+  ctx.textAlign = 'left';
+  ctx.fillText('← acoustic / organic', 10, H - 8);
+  ctx.textAlign = 'right';
+  ctx.fillText('electronic / synthetic →', W - 10, H - 8);
+  ctx.textAlign = 'left';
+  ctx.fillText('↑ high energy / dense', 10, 14);
+  ctx.save();
+  ctx.translate(10, H - 30);
+  ctx.fillText('low energy / sparse ↓', 0, 0);
+  ctx.restore();
+}
+
+render();
+
+// Hover interaction
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) / W;
+  const my = (e.clientY - rect.top) / H;
+
+  // Find nearest genre
+  let nearest = null;
+  let nearestDist = Infinity;
+  for (const g of genres) {
+    const dx = mx - g.x;
+    const dy = my - g.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d < nearestDist) {
+      nearestDist = d;
+      nearest = g;
+    }
+  }
+
+  // Get height at cursor
+  const col = Math.floor(mx * cols);
+  const row = Math.floor(my * rows);
+  const h = (col >= 0 && col < cols && row >= 0 && row < rows)
+    ? heightMap[row * cols + col] : 0;
+
+  if (nearestDist < 0.08 && nearest) {
+    hoverInfo.textContent = `${nearest.name} territory — density: ${(h * 100).toFixed(0)}%`;
+    hoverInfo.style.color = '#ddd';
+  } else if (h > 0.05) {
+    // Find two nearest genres for transition zone
+    const sorted = [...genres].sort((a, b) => {
+      const da = Math.sqrt((mx - a.x) ** 2 + (my - a.y) ** 2);
+      const db = Math.sqrt((mx - b.x) ** 2 + (my - b.y) ** 2);
+      return da - db;
+    });
+    hoverInfo.textContent = `transition zone: ${sorted[0].name} ↔ ${sorted[1].name} — density: ${(h * 100).toFixed(0)}%`;
+    hoverInfo.style.color = '#888';
+  } else {
+    hoverInfo.textContent = `valley — sparse territory — density: ${(h * 100).toFixed(0)}%`;
+    hoverInfo.style.color = '#555';
+  }
+});
+
+canvas.addEventListener('mouseleave', () => {
+  hoverInfo.textContent = 'hover to read the terrain';
+  hoverInfo.style.color = '#666';
+});
+</script>
+</body>
+</html>
