@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<title>Pentatonic heartbeat tuning</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'SF Pro Text',system-ui,-apple-system,sans-serif;padding:1rem 1rem 1.5rem;background:#faf9f6;color:#2c2c2a}
+@media all{body{background:#141412;color:#e8e6dc}}
+canvas{display:block;width:100%;border-radius:10px}
+.ctrl{display:flex;align-items:center;gap:10px;margin:6px 0;font-size:12px;color:#888780}
+.ctrl label{min-width:64px}
+.ctrl input[type=range]{flex:1;height:3px;-webkit-appearance:none;appearance:none;background:#d3d1c7;border-radius:2px;outline:none}
+@media all{.ctrl input[type=range]{background:#444441}}
+.ctrl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;border:0.5px solid rgba(0,0,0,0.25);cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
+@media all{.ctrl input[type=range]::-webkit-slider-thumb{background:#ccc}}
+.ctrl .val{min-width:80px;text-align:right;font-weight:500;font-size:13px;color:#2c2c2a;font-variant-numeric:tabular-nums}
+@media all{.ctrl .val{color:#e8e6dc}}
+.btns{display:flex;gap:8px;margin-top:8px}
+.btns button{flex:1;padding:7px 14px;background:transparent;border:0.5px solid rgba(0,0,0,0.15);border-radius:6px;font-size:12px;cursor:pointer;color:#2c2c2a;transition:all 0.12s;font-weight:500}
+.btns button:hover{background:rgba(0,0,0,0.03)}
+.btns button:active{transform:scale(0.97)}
+.btns button.active{background:#2c2c2a;color:#faf9f6;border-color:#2c2c2a}
+@media all{
+.btns button{border-color:rgba(255,255,255,0.12);color:#e8e6dc}
+.btns button:hover{background:rgba(255,255,255,0.05)}
+.btns button.active{background:#e8e6dc;color:#141412;border-color:#e8e6dc}
+}
+.info{font-size:11px;color:#888780;margin-top:10px;line-height:1.5}
+</style>
+</head>
+<body>
+<canvas id="wave" height="280"></canvas>
+<canvas id="grid" height="320"></canvas>
+<div class="ctrl">
+<label>Tuning</label>
+<input type="range" id="tuning" min="2" max="9" value="5" step="0.05">
+<span class="val" id="t-val">5.00st (4ths)</span>
+</div>
+<div class="ctrl">
+<label>Strings</label>
+<input type="range" id="nstrings" min="6" max="120" value="36" step="1">
+<span class="val" id="ns-val">36</span>
+</div>
+<div class="ctrl">
+<label>Speed</label>
+<input type="range" id="speed" min="20" max="200" value="60" step="5">
+<span class="val" id="sp-val">60ms</span>
+</div>
+<div class="btns">
+<button id="play-btn">Play heartbeat</button>
+<button id="loop-btn">Loop</button>
+</div>
+<div class="info">
+Top: the heartbeat waveform — midpoint fret per string plotted as a wave. Bottom: the fretboard. Drag tuning to change the cam profile. Fourths = gentle pulse. Fifths = deep breath. Minor thirds = flutter.
+</div>
+
+<script>
+const waveCanvas=document.getElementById('wave');
+const gridCanvas=document.getElementById('grid');
+const wCtx=waveCanvas.getContext('2d');
+const gCtx=gridCanvas.getContext('2d');
+const tuningEl=document.getElementById('tuning');
+const tVal=document.getElementById('t-val');
+const nstringsEl=document.getElementById('nstrings');
+const nsVal=document.getElementById('ns-val');
+const speedEl=document.getElementById('speed');
+const spVal=document.getElementById('sp-val');
+const playBtn=document.getElementById('play-btn');
+const loopBtn=document.getElementById('loop-btn');
+
+let audioCtx=null;
+function ac(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx;}
+
+const dark=true;
+const fg=dark?'#e8e6dc':'#2c2c2a';
+const mutedText=dark?'#73726c':'#9c9a92';
+const accent='#EF9F27';
+const accentSoft=dark?'rgba(239,159,39,0.25)':'rgba(239,159,39,0.15)';
+const purple=dark?'#AFA9EC':'#7F77DD';
+const coral=dark?'#F0997B':'#D85A30';
+const teal=dark?'#5DCAA5':'#1D9E75';
+const blue=dark?'#85B7EB':'#378ADD';
+const gridLineC=dark?'rgba(255,255,255,0.04)':'rgba(0,0,0,0.04)';
+const stringLineC=dark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)';
+const parabolaColor=dark?'rgba(175,169,236,0.7)':'rgba(127,119,221,0.6)';
+const parabolaFill=dark?'rgba(175,169,236,0.08)':'rgba(127,119,221,0.05)';
+const waveBg=dark?'rgba(255,255,255,0.02)':'rgba(0,0,0,0.015)';
+
+const pentatonicIntervals=[0,3,5,7,10];
+const dotColors=[coral,purple,teal,blue,accent];
+
+let activeString=-1;
+let looping=false;
+let loopId=null;
+
+function tuningLabel(st){
+  const labels={2:'whole tone',3:'min 3rds',4:'maj 3rds',5:'4ths',6:'tritones',7:'5ths'};
+  const k=Math.round(st);
+  if(Math.abs(st-k)<0.06&&labels[k])return st.toFixed(2)+'st ('+labels[k]+')';
+  return st.toFixed(2)+'st';
+}
+
+function buildNotes(numStrings,tuningSt,rootFret,keyIdx){
+  const notes=[];
+  for(let s=0;s<numStrings;s++){
+    const so=Math.round(s*tuningSt);
+    for(const pi of pentatonicIntervals){
+      for(let oct=-1;oct<=4;oct++){
+        const ts=keyIdx+pi+oct*12;
+        const fret=ts-so;
+        if(fret>=rootFret-1&&fret<=rootFret+4){
+          const midi=40+so+fret;
+          const pc=((midi-(40+keyIdx))%12+12)%12;
+          const pcIdx=pentatonicIntervals.indexOf(pc);
+          if(pcIdx>=0)notes.push({string:s,fret,midi,pitchClass:pcIdx});
+        }
+      }
+    }
+  }
+  notes.sort((a,b)=>a.string-b.string||a.fret-b.fret);
+  const seen=new Set();
+  return notes.filter(n=>{const k=n.string+'_'+n.fret;if(seen.has(k))return false;seen.add(k);return true;});
+}
+
+function getMidpoints(notes,numStrings){
+  const groups={};
+  for(const n of notes){
+    if(!groups[n.string])groups[n.string]=[];
+    groups[n.string].push(n);
+  }
+  const mids=[];
+  for(let s=0;s<numStrings;s++){
+    const g=groups[s];
+    if(g&&g.length>0){
+      mids.push({string:s,fret:g.reduce((a,n)=>a+n.fret,0)/g.length,midi:g.reduce((a,n)=>a+n.midi,0)/g.length,notes:g});
+    }
+  }
+  return mids;
+}
+
+function playChord(notes,dur){
+  const a=ac();
+  for(const n of notes){
+    const osc=a.createOscillator();
+    const g=a.createGain();
+    osc.type='triangle';
+    osc.frequency.value=440*Math.pow(2,(n.midi-69)/12);
+    g.gain.setValueAtTime(0.12,a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+dur+0.05);
+    osc.connect(g);g.connect(a.destination);
+    osc.start();osc.stop(a.currentTime+dur+0.08);
+  }
+}
+
+async function playSeq(){
+  const ms=parseInt(speedEl.value);
+  const tuningSt=parseFloat(tuningEl.value);
+  const numStrings=parseInt(nstringsEl.value);
+  const notes=buildNotes(numStrings,tuningSt,6,6);
+  const mids=getMidpoints(notes,numStrings);
+  for(let i=0;i<mids.length;i++){
+    if(!looping&&activeString===-2)return;
+    activeString=mids[i].string;
+    playChord(mids[i].notes,ms/1000*0.6);
+    draw();
+    await new Promise(r=>setTimeout(r,ms));
+  }
+  activeString=-1;draw();
+}
+
+function startLoop(){looping=true;loopBtn.classList.add('active');loopBtn.textContent='Stop';activeString=0;(async function go(){if(!looping)return;await playSeq();if(looping)loopId=setTimeout(go,100);})();}
+function stopLoop(){looping=false;activeString=-1;loopBtn.classList.remove('active');loopBtn.textContent='Loop';clearTimeout(loopId);draw();}
+playBtn.addEventListener('click',()=>{activeString=0;playSeq();});
+loopBtn.addEventListener('click',()=>looping?stopLoop():startLoop());
+
+function draw(){
+  const dpr=window.devicePixelRatio||1;
+  const w=waveCanvas.clientWidth;
+  const tuningSt=parseFloat(tuningEl.value);
+  const numStrings=parseInt(nstringsEl.value);
+  const notes=buildNotes(numStrings,tuningSt,6,6);
+  const mids=getMidpoints(notes,numStrings);
+  const padL=50,padR=30;
+
+  // WAVE
+  const wH=280;
+  waveCanvas.width=w*dpr;waveCanvas.height=wH*dpr;
+  wCtx.setTransform(dpr,0,0,dpr,0,0);
+  const wPadT=40,wPadB=30,aW=w-padL-padR,aH=wH-wPadT-wPadB;
+  wCtx.fillStyle=waveBg;
+  wCtx.fillRect(padL,wPadT,aW,aH);
+
+  if(mids.length<2)return;
+  const minF=Math.min(...mids.map(m=>m.fret));
+  const maxF=Math.max(...mids.map(m=>m.fret));
+  const fMid=(minF+maxF)/2;
+  const fSpan=Math.max((maxF-minF)*1.4,1);
+
+  function mX(i){return padL+(i/(mids.length-1))*aW;}
+  function fY(f){return wPadT+aH-(((f-(fMid-fSpan/2))/fSpan)*aH);}
+
+  // zero
+  wCtx.strokeStyle=dark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)';
+  wCtx.lineWidth=0.5;wCtx.setLineDash([4,4]);
+  const zy=fY(fMid);
+  wCtx.beginPath();wCtx.moveTo(padL,zy);wCtx.lineTo(w-padR,zy);wCtx.stroke();
+  wCtx.setLineDash([]);
+
+  // fill
+  wCtx.fillStyle=parabolaFill;
+  wCtx.beginPath();wCtx.moveTo(mX(0),zy);
+  for(let i=0;i<mids.length;i++){
+    const x=mX(i),y=fY(mids[i].fret);
+    if(i===0)wCtx.lineTo(x,y);
+    else{const px=mX(i-1),py=fY(mids[i-1].fret);wCtx.quadraticCurveTo((px+x)/2,py,x,y);}
+  }
+  wCtx.lineTo(mX(mids.length-1),zy);wCtx.closePath();wCtx.fill();
+
+  // line
+  wCtx.strokeStyle=parabolaColor;wCtx.lineWidth=2;wCtx.beginPath();
+  for(let i=0;i<mids.length;i++){
+    const x=mX(i),y=fY(mids[i].fret);
+    if(i===0)wCtx.moveTo(x,y);
+    else{const px=mX(i-1),py=fY(mids[i-1].fret);wCtx.quadraticCurveTo((px+x)/2,py,x,y);}
+  }
+  wCtx.stroke();
+
+  // wave dots
+  for(let i=0;i<mids.length;i++){
+    const x=mX(i),y=fY(mids[i].fret);
+    const isA=mids[i].string===activeString;
+    wCtx.fillStyle=isA?accent:parabolaColor;
+    wCtx.globalAlpha=isA?1:0.6;
+    wCtx.beginPath();wCtx.arc(x,y,isA?5:1.5,0,Math.PI*2);wCtx.fill();
+    wCtx.globalAlpha=1;
+  }
+
+  // playhead
+  if(activeString>=0){
+    const ai=mids.findIndex(m=>m.string===activeString);
+    if(ai>=0){wCtx.strokeStyle=accent;wCtx.lineWidth=0.5;wCtx.globalAlpha=0.4;wCtx.beginPath();wCtx.moveTo(mX(ai),wPadT);wCtx.lineTo(mX(ai),wPadT+aH);wCtx.stroke();wCtx.globalAlpha=1;}
+  }
+
+  // HRV
+  if(mids.length>=3){
+    let v=0;for(let i=1;i<mids.length;i++){const d=mids[i].fret-mids[i-1].fret;v+=d*d;}
+    v=Math.sqrt(v/(mids.length-1));
+    wCtx.fillStyle=coral;wCtx.font='500 12px system-ui,sans-serif';wCtx.textAlign='right';
+    wCtx.fillText('HRV: '+v.toFixed(3)+' frets',w-padR,wPadT-12);
+  }
+  wCtx.fillStyle=mutedText;wCtx.font='11px system-ui,sans-serif';wCtx.textAlign='left';
+  wCtx.fillText('Heartbeat — '+numStrings+' strings, '+tuningLabel(tuningSt),padL,wPadT-12);
+
+  // GRID
+  const gH=320;
+  gridCanvas.width=w*dpr;gridCanvas.height=gH*dpr;
+  gCtx.setTransform(dpr,0,0,dpr,0,0);
+  const gT=20,gB=30,gA=gH-gT-gB;
+  const gMinF=5,gMaxF=10,gFS=gMaxF-gMinF;
+  function gX(f){return padL+((f-gMinF)/gFS)*aW;}
+  function gY(s){return gT+(s/Math.max(numStrings-1,1))*gA;}
+
+  for(let f=gMinF;f<=gMaxF;f++){
+    const x=gX(f);gCtx.strokeStyle=gridLineC;gCtx.lineWidth=f===6?1.2:0.5;
+    gCtx.beginPath();gCtx.moveTo(x,gT-5);gCtx.lineTo(x,gT+gA+5);gCtx.stroke();
+    gCtx.fillStyle=mutedText;gCtx.font='500 10px system-ui,sans-serif';gCtx.textAlign='center';gCtx.fillText(f,x,gT+gA+18);
+  }
+
+  const step=numStrings>60?Math.floor(numStrings/60):1;
+  for(let s=0;s<numStrings;s+=step){
+    const y=gY(s);gCtx.strokeStyle=stringLineC;gCtx.lineWidth=0.5;
+    gCtx.beginPath();gCtx.moveTo(padL-5,y);gCtx.lineTo(w-padR+5,y);gCtx.stroke();
+  }
+
+  const dr=numStrings>80?1.5:numStrings>40?2:numStrings>20?3:4;
+  for(const n of notes){
+    const x=gX(n.fret),y=gY(n.string);
+    const isA=n.string===activeString;
+    gCtx.fillStyle=isA?accent:dotColors[n.pitchClass];
+    gCtx.globalAlpha=isA?1:0.7;
+    gCtx.beginPath();gCtx.arc(x,y,isA?dr+1.5:dr,0,Math.PI*2);gCtx.fill();
+    gCtx.globalAlpha=1;
+  }
+
+  if(mids.length>=2){
+    gCtx.strokeStyle=parabolaColor;gCtx.lineWidth=1.5;gCtx.beginPath();
+    for(let i=0;i<mids.length;i++){
+      const x=gX(mids[i].fret),y=gY(mids[i].string);
+      if(i===0)gCtx.moveTo(x,y);else gCtx.lineTo(x,y);
+    }
+    gCtx.stroke();
+  }
+
+  gCtx.fillStyle=mutedText;gCtx.font='11px system-ui,sans-serif';gCtx.textAlign='left';
+  gCtx.fillText('Fretboard',padL,gT-5);
+  if(mids.length>=2){
+    const drift=mids[mids.length-1].fret-mids[0].fret;
+    gCtx.fillStyle=teal;gCtx.font='500 11px system-ui,sans-serif';gCtx.textAlign='right';
+    gCtx.fillText('Drift: '+(drift>=0?'+':'')+drift.toFixed(1),w-padR,gT-5);
+  }
+}
+
+tuningEl.addEventListener('input',()=>{tVal.textContent=tuningLabel(parseFloat(tuningEl.value));draw();});
+nstringsEl.addEventListener('input',()=>{nsVal.textContent=nstringsEl.value;draw();});
+speedEl.addEventListener('input',()=>{spVal.textContent=speedEl.value+'ms';});
+window.addEventListener('resize',draw);
+draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pentagon Model — Audible Geometry with Ghost Notes</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1714;color:#c4b9a0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;flex-direction:column;align-items:center;padding:2rem 1rem;min-height:100vh}
+h1{font-size:18px;font-weight:500;margin-bottom:4px;color:#e0d6c2}
+.subtitle{font-size:13px;color:#7a7060;margin-bottom:24px}
+svg{max-width:680px;width:100%}
+.controls{display:flex;align-items:center;gap:12px;margin:16px 0 0;width:100%;max-width:680px}
+.controls span{font-size:13px;color:#7a7060;min-width:56px}
+.controls input[type=range]{flex:1;accent-color:#1D9E75;height:6px}
+#rot-label{min-width:64px;text-align:right;font-size:13px;color:#7a7060}
+.buttons{display:flex;gap:8px;margin:12px 0 0;justify-content:center;flex-wrap:wrap}
+.buttons button{font-size:13px;padding:6px 16px;background:transparent;color:#c4b9a0;border:0.5px solid #3a352c;border-radius:8px;cursor:pointer;transition:all 0.15s;font-family:inherit}
+.buttons button:hover{background:rgba(196,185,160,0.08);border-color:#7a7060}
+.buttons button:active{transform:scale(0.98)}
+#freq-info{font-size:12px;color:#7a7060;margin:12px 0 0;text-align:center;line-height:1.7;max-width:680px}
+</style>
+</head>
+<body>
+<h1>Pentagon model — audible geometry</h1>
+<div class="subtitle">Alex Cooper & Claude, 17–18 March 2026</div>
+<svg id="ps" viewBox="0 0 680 540"></svg>
+<div class="controls">
+<span>Rotate</span>
+<input type="range" id="rot" min="0" max="12" step="0.01" value="0">
+<span id="rot-label">+0.00 st</span>
+</div>
+<div class="buttons">
+<button onclick="playChord()">Play chord</button>
+<button onclick="playArp()">Arpeggiate</button>
+<button onclick="playGhosts()">Play ghosts</button>
+<button onclick="stopAll()">Stop</button>
+<button id="notch-btn" onclick="toggleNotch()">Notch: off</button>
+</div>
+<div id="freq-info"></div>
+<script>
+const CX=290,CY=250,R=190,Ri=155;
+const notes=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const pentOff=[0,2,5,7,9];
+const baseFreq=261.63;
+let rotation=0;
+let notch=false;
+let actx=null;
+let activeOscs=[];
+let activeGains=[];
+
+const diagPairs=[[0,2],[0,3],[1,3],[1,4],[2,4]];
+const crossPairs=[
+  [[0,2],[1,4]],
+  [[0,2],[1,3]],
+  [[0,3],[1,4]],
+  [[0,3],[2,4]],
+  [[1,3],[2,4]]
+];
+
+function ensureCtx(){
+  if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();
+  if(actx.state==='suspended')actx.resume();
+}
+function freqFromSt(st){return baseFreq*Math.pow(2,st/12);}
+function notePos(chromPos,radius){
+  const a=-Math.PI/2+(chromPos*Math.PI*2/12);
+  return[CX+radius*Math.cos(a),CY+radius*Math.sin(a)];
+}
+function noteName(chromPos){
+  const w=((chromPos%12)+12)%12;
+  const idx=Math.round(w)%12;
+  const cents=Math.round((w-Math.round(w))*100);
+  if(Math.abs(cents)<2)return notes[idx];
+  return notes[idx]+(cents>0?'+':'')+cents+'\u00A2';
+}
+function lineIntersect(x1,y1,x2,y2,x3,y3,x4,y4){
+  const d=(x1-x2)*(y3-y4)-(y1-y2)*(x3-x4);
+  if(Math.abs(d)<1e-10)return null;
+  const t=((x1-x3)*(y3-y4)-(y1-y3)*(x3-x4))/d;
+  return[x1+t*(x2-x1),y1+t*(y2-y1)];
+}
+function chromFromXY(x,y){
+  const a=Math.atan2(y-CY,x-CX);
+  return(((a+Math.PI/2)/(Math.PI*2))*12+12)%12;
+}
+
+function getVertexPositions(){
+  return pentOff.map(p=>{
+    const cp=p+rotation;
+    return{cp,pos:notePos(cp,Ri)};
+  });
+}
+
+function getGhostNotes(){
+  const verts=getVertexPositions();
+  const ghosts=[];
+  for(const[d1,d2] of crossPairs){
+    const[[a1,a2],[b1,b2]]=[d1,d2];
+    const p1=verts[a1].pos,p2=verts[a2].pos;
+    const p3=verts[b1].pos,p4=verts[b2].pos;
+    const ix=lineIntersect(p1[0],p1[1],p2[0],p2[1],p3[0],p3[1],p4[0],p4[1]);
+    if(ix){
+      const rawAngle=Math.atan2(ix[1]-CY,ix[0]-CX);
+      let chromAbs=((rawAngle+Math.PI/2)/(Math.PI*2))*12;
+      chromAbs=((chromAbs%12)+12)%12;
+      ghosts.push({x:ix[0],y:ix[1],chrom:chromAbs,d1,d2});
+    }
+  }
+  return ghosts;
+}
+
+function playNote(st,dur){
+  ensureCtx();
+  const osc=actx.createOscillator();
+  const gain=actx.createGain();
+  osc.type='sine';
+  osc.frequency.value=freqFromSt(st);
+  gain.gain.value=0;
+  osc.connect(gain);
+  gain.connect(actx.destination);
+  osc.start();
+  const now=actx.currentTime;
+  gain.gain.setValueAtTime(0,now);
+  gain.gain.linearRampToValueAtTime(0.12,now+0.04);
+  if(dur){
+    gain.gain.setValueAtTime(0.12,now+dur-0.08);
+    gain.gain.linearRampToValueAtTime(0,now+dur);
+    osc.stop(now+dur+0.01);
+  }else{
+    activeOscs.push(osc);activeGains.push(gain);
+  }
+}
+function playChord(){
+  stopAll();ensureCtx();
+  for(let i=0;i<5;i++)playNote(pentOff[i]+rotation);
+}
+function playArp(){
+  stopAll();ensureCtx();
+  for(let i=0;i<5;i++){
+    const s=pentOff[i]+rotation;
+    setTimeout(()=>playNote(s,0.4),i*200);
+  }
+}
+function playGhosts(){
+  stopAll();ensureCtx();
+  const ghosts=getGhostNotes();
+  ghosts.forEach((g,i)=>{
+    setTimeout(()=>playNote(g.chrom,0.5),i*220);
+  });
+}
+function playOneGhost(chrom){
+  ensureCtx();
+  playNote(chrom,0.6);
+}
+function stopAll(){
+  const now=actx?actx.currentTime:0;
+  for(let i=0;i<activeGains.length;i++){
+    try{
+      activeGains[i].gain.cancelScheduledValues(now);
+      activeGains[i].gain.setValueAtTime(activeGains[i].gain.value,now);
+      activeGains[i].gain.linearRampToValueAtTime(0,now+0.06);
+      activeOscs[i].stop(now+0.07);
+    }catch(e){}
+  }
+  activeOscs=[];activeGains=[];
+}
+
+function toggleNotch(){
+  notch=!notch;
+  const btn=document.getElementById('notch-btn');
+  const slider=document.getElementById('rot');
+  if(notch){
+    btn.textContent='Notch: on';
+    btn.style.background='rgba(29,158,117,0.15)';
+    btn.style.color='#1D9E75';
+    btn.style.border='0.5px solid #1D9E75';
+    slider.step='1';
+    rotation=Math.round(rotation);
+    slider.value=rotation;
+    document.getElementById('rot-label').textContent='+'+rotation.toFixed(0)+' st';
+  }else{
+    btn.textContent='Notch: off';
+    btn.style.background='';
+    btn.style.color='';
+    btn.style.border='';
+    slider.step='0.01';
+  }
+  render();
+}
+
+function setRot(v){
+  rotation=+v;
+  document.getElementById('rot-label').textContent=notch?('+'+rotation.toFixed(0)+' st'):('+'+rotation.toFixed(2)+' st');
+  render();
+}
+document.getElementById('rot').addEventListener('input',function(){setRot(+this.value);});
+
+function clickVertex(i){
+  ensureCtx();
+  playNote(pentOff[i]+rotation,0.6);
+}
+
+function render(){
+  const svg=document.getElementById('ps');
+  let s='';
+  s+=`<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="#3a352c" stroke-width="0.5"/>`;
+  for(let i=0;i<12;i++){
+    const[x,y]=notePos(i,R);
+    s+=`<circle cx="${x}" cy="${y}" r="3" fill="#5a5548"/>`;
+    const[lx,ly]=notePos(i,R+20);
+    s+=`<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="central" style="font-family:inherit;font-size:11px;fill:#7a7060">${notes[i]}</text>`;
+  }
+
+  if(notch){
+    for(let i=0;i<12;i++){
+      const a=-Math.PI/2+(i*Math.PI*2/12);
+      const ix=CX+(R-4)*Math.cos(a),iy=CY+(R-4)*Math.sin(a);
+      const ox=CX+(R+4)*Math.cos(a),oy=CY+(R+4)*Math.sin(a);
+      s+=`<line x1="${ix}" y1="${iy}" x2="${ox}" y2="${oy}" stroke="#5a5548" stroke-width="1"/>`;
+    }
+  }
+
+  const verts=getVertexPositions();
+  const pts=verts.map(v=>v.pos);
+
+  let poly='';
+  for(let i=0;i<5;i++)poly+=(i===0?'M':'L')+pts[i][0]+' '+pts[i][1];
+  poly+='Z';
+  s+=`<path d="${poly}" fill="rgba(29,158,117,0.08)" stroke="#1D9E75" stroke-width="1.5" stroke-linejoin="round"/>`;
+
+  for(const[i,j] of diagPairs){
+    s+=`<line x1="${pts[i][0]}" y1="${pts[i][1]}" x2="${pts[j][0]}" y2="${pts[j][1]}" stroke="#7F77DD" stroke-width="3" opacity="0.15" style="cursor:pointer"/>`;
+    s+=`<line x1="${pts[i][0]}" y1="${pts[i][1]}" x2="${pts[j][0]}" y2="${pts[j][1]}" stroke="#7F77DD" stroke-width="0.8" opacity="0.5"/>`;
+  }
+
+  const ghosts=getGhostNotes();
+  for(const g of ghosts){
+    const name=noteName(g.chrom);
+    s+=`<circle cx="${g.x}" cy="${g.y}" r="11" fill="rgba(216,90,48,0.12)" stroke="#D85A30" stroke-width="1" style="cursor:pointer" onclick="playOneGhost(${g.chrom.toFixed(4)})"/>`;
+    s+=`<text x="${g.x}" y="${g.y}" text-anchor="middle" dominant-baseline="central" style="font-family:inherit;font-size:9px;fill:#D85A30;font-weight:500;pointer-events:none">${name}</text>`;
+  }
+
+  const vColors=['#1D9E75','#0F6E56','#1D9E75','#0F6E56','#1D9E75'];
+  for(let i=0;i<5;i++){
+    const[x,y]=pts[i];
+    const cp=verts[i].cp;
+    const f=freqFromSt(cp);
+    const name=noteName(cp);
+    s+=`<circle cx="${x}" cy="${y}" r="18" fill="${vColors[i]}" opacity="0.9" style="cursor:pointer" onclick="clickVertex(${i})"/>`;
+    s+=`<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" style="font-family:inherit;font-size:12px;fill:#fff;font-weight:500;pointer-events:none">${name}</text>`;
+    const[lx,ly]=notePos(cp,Ri-30);
+    s+=`<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="central" style="font-family:monospace;font-size:10px;fill:#7a7060;pointer-events:none">${f.toFixed(1)}</text>`;
+  }
+
+  const steps=[2,3,2,2,3];
+  for(let i=0;i<5;i++){
+    const mx=(pts[i][0]+pts[(i+1)%5][0])/2;
+    const my=(pts[i][1]+pts[(i+1)%5][1])/2;
+    const dx=mx-CX,dy=my-CY;
+    const len=Math.sqrt(dx*dx+dy*dy)||1;
+    s+=`<text x="${mx+dx/len*14}" y="${my+dy/len*14}" text-anchor="middle" dominant-baseline="central" style="font-family:monospace;font-size:10px;fill:#7a7060">${steps[i]}</text>`;
+  }
+
+  let fi='<span style="color:#1D9E75">Vertices:</span> ';
+  for(let i=0;i<5;i++){
+    const cp=verts[i].cp;
+    fi+=noteName(cp)+'='+freqFromSt(cp).toFixed(1);
+    if(i<4)fi+=' \u00b7 ';
+  }
+  fi+='<br><span style="color:#D85A30">Ghosts:</span> ';
+  for(let i=0;i<ghosts.length;i++){
+    fi+=noteName(ghosts[i].chrom)+'='+freqFromSt(ghosts[i].chrom).toFixed(1);
+    if(i<ghosts.length-1)fi+=' \u00b7 ';
+  }
+  document.getElementById('freq-info').innerHTML=fi;
+  svg.innerHTML=s;
+}
+render();
+</script>
+</body>
+</html>

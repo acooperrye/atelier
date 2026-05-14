@@ -12,7 +12,10 @@ Each project gets its own directory. Inside: the artifact(s), and a brief README
 atelier/
   textonic-engine/         — Semiotic/semantic processing engine
   domain-drift-map/        — Spectral domain mapping visualisation
-  karyotype-terrain/       — Terrain visualisation of compositional DNA
+  karyotype-terrain/       — Genre topology — terrain of compositional DNA
+  sonic-phenomenology/     — Music-analysis framework (prototype)
+  kok-cycle/               — The Action Cycling Hypothesis — photosynthetic duty cycle
+  pentatonic/              — The Pentatonic Suite — pentagon, heartbeat tuning, squish
   calibration-matrix/      — Parameter calibration interface
   sanding-machine/         — Iterative refinement tool
   idea-topography/         — Idea mapping surface
@@ -22,10 +25,19 @@ atelier/
   hashbrown/               — Flat systems surface files
   attentional-sort/        — Claude UI attention sorting proposal
   llm-lithium/             — Dynamic entropy stabilisation (master v3)
-  sonic-phenomenology/     — 58-parameter WAV analysis framework
   deployment-engine/       — Deployment automation skeleton
   prompt-architecture-letter/ — Prompt design correspondence
 ```
+
+## The Pentatonic Suite
+
+`pentatonic/` is a cluster, not a single artifact — three playable pieces treating the pentatonic scale as geometry rather than a list of notes:
+
+- **Pentatonic Pentagon** — the scale drawn as a pentagon in the twelve-note circle; rotate it, hear it, find the ghost notes where the diagonals cross.
+- **Heartbeat Tuning** — the midpoint fret of each string plotted as a waveform; the tuning interval reshapes the cam profile.
+- **Squish** — fold pitch space into fret space and watch the fretbox emerge from the pure line.
+
+All three are self-contained single-file HTML and mirror live deployments under `/tools/pentatonic/` on the site. The conceptual model behind them is in `pentatonic/pentagon-model.md`.
 
 ## Why stubs are kept
 
