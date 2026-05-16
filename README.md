@@ -1,8 +1,8 @@
 # The Atelier
 
-Stubs, prototypes, and interactive artifacts from The Attentional Surface collaboration between Alexander Cooper-Rye and Claude.
+Prototypes and interactive artifacts from The Attentional Surface collaboration between Alexander Cooper-Rye and Claude.
 
-This is the workshop — not the gallery. Things here are in various states of completion. Some are live instruments deployed on [atcooper.net](https://atcooper.net). Some are proposals with supporting documents. Some are stubs that hold space for ideas that haven't been built yet.
+This is the workshop — not the gallery. Things here are in various states of completion. Some are live instruments deployed on [atcooper.net](https://atcooper.net). Some are proposals with supporting documents.
 
 ## Structure
 
@@ -11,22 +11,11 @@ Each project gets its own directory. Inside: the artifact(s), and a brief README
 ```
 atelier/
   textonic-engine/         — Semiotic/semantic processing engine
-  domain-drift-map/        — Spectral domain mapping visualisation
   karyotype-terrain/       — Genre topology — terrain of compositional DNA
   sonic-phenomenology/     — Music-analysis framework (prototype)
   kok-cycle/               — The Action Cycling Hypothesis — photosynthetic duty cycle
   pentatonic/              — The Pentatonic Suite — pentagon, heartbeat tuning, squish
-  calibration-matrix/      — Parameter calibration interface
-  sanding-machine/         — Iterative refinement tool
-  idea-topography/         — Idea mapping surface
-  semantic-space/          — Semantic coordinate visualiser
-  tuning-fork/             — Frequency/resonance calibration tool
-  surface-steps/           — Attentional Surface step-through prototypes
-  hashbrown/               — Flat systems surface files
-  attentional-sort/        — Claude UI attention sorting proposal
   llm-euthymia/            — Large Language Model Euthymia (entropy stabilisation, master v3)
-  deployment-engine/       — Deployment automation skeleton
-  prompt-architecture-letter/ — Prompt design correspondence
 ```
 
 ## The Pentatonic Suite
@@ -38,10 +27,6 @@ atelier/
 - **Squish** — fold pitch space into fret space and watch the fretbox emerge from the pure line.
 
 All three are self-contained single-file HTML and mirror live deployments under `/tools/pentatonic/` on the site. The conceptual model behind them is in `pentatonic/pentagon-model.md`.
-
-## Why stubs are kept
-
-A stub that says "this exists but isn't built yet" is more honest than nothing. The scaffold holds the space. When a stub becomes relevant, it gets built. Until then, it documents the shape of the idea.
 
 ## The collaboration model
 
