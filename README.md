@@ -24,7 +24,7 @@ atelier/
   surface-steps/           — Attentional Surface step-through prototypes
   hashbrown/               — Flat systems surface files
   attentional-sort/        — Claude UI attention sorting proposal
-  llm-lithium/             — Dynamic entropy stabilisation (master v3)
+  llm-euthymia/            — Large Language Model Euthymia (entropy stabilisation, master v3)
   deployment-engine/       — Deployment automation skeleton
   prompt-architecture-letter/ — Prompt design correspondence
 ```
