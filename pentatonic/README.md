@@ -19,7 +19,6 @@ All three artifacts are self-contained single-file HTML (SVG/Canvas + Web Audio,
 - `pentatonic-pentagon.html` — the **Pentatonic Pentagon**. Draws the pentatonic pentagon in the twelve-note circle; rotate it (continuous or notched to whole semitones), play the chord, arpeggiate, click vertices to sound individual notes. The pentagon's diagonals cross at *ghost notes* — pitches the geometry implies that the scale itself never plays — sounded on click.
 - `heartbeat-tuning.html` — **Heartbeat Tuning**. Plots the midpoint fret of each string as a waveform: the fretboard becomes a wave. Dragging the tuning interval reshapes the cam profile — fourths pulse, fifths breathe, minor thirds flutter. Controls for string count and playback speed; plays the heartbeat as audio.
 - `squish.html` — **Squish**. Folds pitch space into fret space with a squish slider; click any dot to hear it, run the pentatonic sequence. The pentagon doesn't close — it keeps running.
-- `pentagon-model.md` — the conceptual model behind the suite: closeness as the starting condition, the song as suppression pattern, melodic movement as angle, song comparison as a pentagon-rotation problem.
 
 ## Note on source
 
