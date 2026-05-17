@@ -10,12 +10,10 @@ Each project gets its own directory. Inside: the artifact(s), and a brief README
 
 ```
 atelier/
-  textonic-engine/         — Semiotic/semantic processing engine
   karyotype-terrain/       — Genre topology — terrain of compositional DNA
   sonic-phenomenology/     — Music-analysis framework (prototype)
   kok-cycle/               — The Action Cycling Hypothesis — photosynthetic duty cycle
   pentatonic/              — The Pentatonic Suite — pentagon, heartbeat tuning, squish
-  llm-euthymia/            — Large Language Model Euthymia (entropy stabilisation, master v3)
 ```
 
 ## The Pentatonic Suite
@@ -29,8 +27,6 @@ atelier/
 All three are self-contained single-file HTML and mirror live deployments under `/tools/pentatonic/` on the site. The conceptual model behind them is in `pentatonic/pentagon-model.md`.
 
 ## The collaboration model
-
-These artifacts were built across months of conversation between one human and one AI. The human brings the ideas, the taste, and the judgment calls. The AI brings the architecture, the implementation, and the ability to hold a lot of context at once. Neither could build these alone.
 
 Some artifacts reference each other. Some reference pages on [atcooper.net](https://atcooper.net). The relationships are real — this isn't a flat collection, it's a connected workshop.
 
