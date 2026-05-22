@@ -12,7 +12,6 @@ Each project gets its own directory. Inside: the artifact(s), and a brief README
 atelier/
   karyotype-terrain/       — Genre topology — terrain of compositional DNA
   sonic-phenomenology/     — Music-analysis framework (prototype)
-  kok-cycle/               — The Action Cycling Hypothesis — photosynthetic duty cycle
   pentatonic/              — The Pentatonic Suite — pentagon, heartbeat tuning, squish
 ```
 
