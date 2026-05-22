@@ -11,7 +11,7 @@ Each project gets its own directory. Inside: the artifact(s), and a brief README
 ```
 atelier/
   karyotype-terrain/       — Genre topology — terrain of compositional DNA
-  sonic-phenomenology/     — Music-analysis framework (prototype)
+  sonic-decomposition/     — Music-analysis toolkit (alpha)
   pentatonic/              — The Pentatonic Suite — pentagon, heartbeat tuning, squish
 ```
 
